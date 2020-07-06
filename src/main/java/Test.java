@@ -31,6 +31,6 @@ public class Test {
                 .start();
 
         query.awaitTermination();
-
+        //todo 数据源改成json格式的订单信息，测试通过后消费cmq
     }
 }
