@@ -19,7 +19,7 @@ public class TestReadKafka {
         Dataset<Row> df = spark
                 .readStream()
                 .format("kafka")
-                .option("kafka.bootstrap.servers", "192.168.1.70:9092")
+                .option("kafka.bootstrap.servers", "192.168.31.54:9092")
                 .option("subscribe", "test")
                 .option("startingOffsets", "earliest")
                 .load();
@@ -29,18 +29,36 @@ public class TestReadKafka {
                 .select(functions.from_json(functions.col("value").cast("string"), orderSchema).alias("parsed_value"))
                 .select("parsed_value.*");
         //每隔一分钟计算一分钟之前的 2分钟时间段内的数据
-        Dataset<Row> windowedCounts = orderDF.groupBy(
-                functions.window(orderDF.col("timestamp"),"3 minutes","1 minutes"),
+        Dataset<Row> windowedCounts = orderDF.
+                withWatermark("timestamp","30 minutes").
+                groupBy(functions.window(orderDF.col("timestamp"),"1 minutes"),
                 orderDF.col("name")
-        ).count();
-        //如果要使用append模式，必须制定watermark
-        StreamingQuery query = windowedCounts.writeStream()
-                .outputMode("update")
-                .format("console")
+                ).count();
+
+        windowedCounts.printSchema();
+
+//        StreamingQuery query = windowedCounts.writeStream()
+//                .outputMode("update")
+//                .format("console")
+//                .trigger(Trigger.ProcessingTime("1 minutes"))
+//                .start();
+
+
+        StreamingQuery query = windowedCounts
+                .toJSON().as("value")
+                .writeStream()
+                .format("kafka")
+                .option("kafka.bootstrap.servers", "192.168.31.54:9092")
+                .option("topic", "out")
                 .trigger(Trigger.ProcessingTime("1 minutes"))
+                .outputMode("update")
+                .option("checkpointLocation", "C://tmp//dir")
                 .start();
+
 
         query.awaitTermination();
 
+
     }
 }
+
