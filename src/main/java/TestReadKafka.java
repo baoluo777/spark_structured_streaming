@@ -1,7 +1,7 @@
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.functions;
+import static org.apache.spark.sql.functions.*;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.streaming.Trigger;
@@ -19,45 +19,44 @@ public class TestReadKafka {
         Dataset<Row> df = spark
                 .readStream()
                 .format("kafka")
-                .option("kafka.bootstrap.servers", "192.168.31.54:9092")
+                .option("kafka.bootstrap.servers", "192.168.1.70:9092")
                 .option("subscribe", "test")
                 .option("startingOffsets", "earliest")
+                .option("failOnDataLoss", "false")
                 .load();
         StructType orderSchema = new StructType().add("name", "string").add("age", "int").add("timestamp", "timestamp");
 
         Dataset<Row> orderDF = df
-                .select(functions.from_json(functions.col("value").cast("string"), orderSchema).alias("parsed_value"))
+                .select(from_json(col("value").cast("string"), orderSchema).alias("parsed_value"))
                 .select("parsed_value.*");
-        //每隔一分钟计算一分钟之前的 2分钟时间段内的数据
         Dataset<Row> windowedCounts = orderDF.
-                withWatermark("timestamp","30 minutes").
-                groupBy(functions.window(orderDF.col("timestamp"),"1 minutes"),
-                orderDF.col("name")
+                withWatermark("timestamp","2 minutes").
+                groupBy(window(col("timestamp"),"1 minutes"), col("name")
                 ).count();
 
         windowedCounts.printSchema();
 
-//        StreamingQuery query = windowedCounts.writeStream()
-//                .outputMode("update")
-//                .format("console")
-//                .trigger(Trigger.ProcessingTime("1 minutes"))
-//                .start();
-
-
-        StreamingQuery query = windowedCounts
-                .toJSON().as("value")
-                .writeStream()
-                .format("kafka")
-                .option("kafka.bootstrap.servers", "192.168.31.54:9092")
-                .option("topic", "out")
+        StreamingQuery query = windowedCounts.writeStream()
+                .outputMode("append")
+                .format("console")
                 .trigger(Trigger.ProcessingTime("1 minutes"))
-                .outputMode("update")
-                .option("checkpointLocation", "C://tmp//dir")
                 .start();
 
 
-        query.awaitTermination();
+        //sink如果是kafka必须有value字段，同时必须指定checkpointLocation
+//        StreamingQuery query = windowedCounts
+//                .toJSON().as("value")
+//                .select(col("value").cast("string"))
+//                .writeStream()
+//                .format("kafka")
+//                .option("kafka.bootstrap.servers", "192.168.1.70:9092")
+//                .option("topic", "out")
+//                .trigger(Trigger.ProcessingTime("1 minutes"))
+//                .outputMode("update")
+//                .option("checkpointLocation", "C://tmp//dir")
+//                .start();
 
+        query.awaitTermination();
 
     }
 }
