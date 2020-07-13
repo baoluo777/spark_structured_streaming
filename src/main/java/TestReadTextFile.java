@@ -6,6 +6,8 @@ import org.apache.spark.sql.functions;
 import org.apache.spark.sql.streaming.StreamingQuery;
 import org.apache.spark.sql.streaming.StreamingQueryException;
 import org.apache.spark.sql.types.StructType;
+import static org.apache.spark.sql.functions.*;
+
 
 import java.util.concurrent.TimeoutException;
 
@@ -22,17 +24,25 @@ public class TestReadTextFile {
                 .option("sep", ",")
                 .schema(userSchema)      // Specify schema of the csv files
                 .csv("C://tmp//");
-        //每隔一分钟计算一分钟之前的 2分钟时间段内的数据
+
         Dataset<Row> windowedCounts = csvDF.groupBy(
-                functions.window(csvDF.col("timestamp"), "2 minutes","1 minutes"),
-                csvDF.col("name")
+                window(col("timestamp"), "10 minutes"),
+                col("name")
         ).count();
-        StreamingQuery query = windowedCounts.writeStream()
+        Dataset<Row> windowedCounts1 = csvDF.filter("age > 20").groupBy(
+                window(col("timestamp"), "10 minutes"),
+                col("name")
+        ).count();
+         windowedCounts.writeStream()
                 .outputMode("complete")
                 .format("console")
                 .start();
+         windowedCounts1.writeStream()
+                .outputMode("complete")
+                .format("console")
+                .start();
+//        query.awaitTermination();
 
-        query.awaitTermination();
-        //todo 数据源改成json格式的订单信息，测试通过后消费cmq
+        spark.streams().awaitAnyTermination();
     }
 }
