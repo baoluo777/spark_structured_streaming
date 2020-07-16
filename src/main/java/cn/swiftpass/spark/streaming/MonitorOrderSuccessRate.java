@@ -16,8 +16,10 @@ public class MonitorOrderSuccessRate {
     private static String kafkaWriteTopic = "monitorOrder";
     private static String oracleDriver = "oracle.jdbc.OracleDriver";
     private static String oracleUrl = "jdbc:oracle:thin:@119.29.113.225:1521:ndev";
-    private static String userName = "jindong";
-    private static String password = "jindong";
+    private static String mysqlDriver = "com.mysql.jdbc.Driver";
+    private static String mysqlUrl = "jdbc:mysql://192.168.31.33:3306/monitor";
+    private static String userName = "hive";
+    private static String password = "hive";
 
 
     public static void main(String[] args) throws TimeoutException, StreamingQueryException {
@@ -49,8 +51,8 @@ public class MonitorOrderSuccessRate {
                 .select(from_json(col("value").cast("string"), orderSchema).alias("parsed_value"))
                 .select("parsed_value.*");
 
-        groupWithBankNo(orderDF);
-//        groupWithMerchantId(orderDF, spark);
+//        groupWithBankNo(orderDF);
+        groupWithMerchantId(orderDF, spark);
 //        groupWithAgentId(orderDF, spark);
 //        groupWithGroupId(orderDF, spark);
 
@@ -72,8 +74,8 @@ public class MonitorOrderSuccessRate {
         Dataset<Row> filterDf = ss
                 .read()
                 .format("jdbc")
-                .option("driver", oracleDriver)
-                .option("url", oracleUrl)
+                .option("driver", mysqlDriver)
+                .option("url", mysqlUrl)
                 .option("dbtable", "filter_merchant_ids")
                 .option("user", userName)
                 .option("password", password)
@@ -86,8 +88,9 @@ public class MonitorOrderSuccessRate {
 // Join between two streaming DataFrames/Datasets is not supported in Update output mode, only in Append output mode
 // Default trigger (runs micro-batch as soon as it can)
 //                .trigger(Trigger.ProcessingTime("1 minutes"))
-        write2kafka(countDf);
 
+//        write2kafka(countDf);
+write2console(countDf);
     }
 
     private static void groupWithAgentId(Dataset<Row> orderDF, SparkSession ss) throws TimeoutException {
