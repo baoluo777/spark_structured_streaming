@@ -17,7 +17,7 @@ public class MonitorOrderSuccessRate {
     private static String oracleDriver = "oracle.jdbc.OracleDriver";
     private static String oracleUrl = "jdbc:oracle:thin:@119.29.113.225:1521:ndev";
     private static String mysqlDriver = "com.mysql.jdbc.Driver";
-    private static String mysqlUrl = "jdbc:mysql://192.168.31.33:3306/monitor";
+    private static String mysqlUrl = "jdbc:mysql://192.168.31.31:3306/monitor";
     private static String userName = "hive";
     private static String password = "hive";
 
@@ -64,7 +64,7 @@ public class MonitorOrderSuccessRate {
         Dataset<Row> countDf = orderDF.
                 withWatermark("trade_time", "30 seconds").
                 groupBy(window(col("trade_time"), "1 minutes"), col("bank_no").alias("groupBy"), col("term_type"), col("state")
-                ).count().withColumn("groupByType",lit("bank_no"));
+                ).count().withColumn("groupByType", lit("bank_no"));
 //        write2kafka(countDf);
         write2console(countDf);
     }
@@ -80,17 +80,17 @@ public class MonitorOrderSuccessRate {
                 .option("user", userName)
                 .option("password", password)
                 .load();
-        Dataset<Row> afterFilterDf = filterDf.where("org_type= '1'").join(orderDF, col("merchant_id"),"left");
+        Dataset<Row> afterFilterDf = filterDf.where("org_type= '1'").join(orderDF, col("merchant_id"), "left");
         Dataset<Row> countDf = afterFilterDf.
                 withWatermark("trade_time", "30 seconds").
                 groupBy(window(col("trade_time"), "1 minutes"), col("merchant_id").alias("groupBy"), col("term_type"), col("state")
-                ).count().withColumn("groupByType",lit("merchant_id"));
+                ).count().withColumn("groupByType", lit("merchant_id"));
 // Join between two streaming DataFrames/Datasets is not supported in Update output mode, only in Append output mode
 // Default trigger (runs micro-batch as soon as it can)
 //                .trigger(Trigger.ProcessingTime("1 minutes"))
 
 //        write2kafka(countDf);
-write2console(countDf);
+        write2console(countDf);
     }
 
     private static void groupWithAgentId(Dataset<Row> orderDF, SparkSession ss) throws TimeoutException {
@@ -104,11 +104,11 @@ write2console(countDf);
                 .option("password", password)
                 .load();
 
-        Dataset<Row> afterFilterDf = orderDF.join(filterDf, col("agent_id"),"left");
+        Dataset<Row> afterFilterDf = orderDF.join(filterDf, col("agent_id"), "left");
         Dataset<Row> countDf = afterFilterDf.
                 withWatermark("trade_time", "30 seconds").
                 groupBy(window(col("trade_time"), "1 minutes"), col("agent_id").alias("groupBy"), col("term_type"), col("state")
-                ).count().withColumn("groupByType",lit("agent_id"));
+                ).count().withColumn("groupByType", lit("agent_id"));
 // Join between two streaming DataFrames/Datasets is not supported in Update output mode, only in Append output mode
 // Default trigger (runs micro-batch as soon as it can)
 //                .trigger(Trigger.ProcessingTime("1 minutes"))
@@ -131,7 +131,7 @@ write2console(countDf);
         Dataset<Row> countDf = afterFilterDf.
                 withWatermark("trade_time", "30 seconds").
                 groupBy(window(col("trade_time"), "1 minutes"), col("group_id").alias("groupBy"), col("term_type"), col("state")
-                ).count().withColumn("groupByType",lit("group_id"));
+                ).count().withColumn("groupByType", lit("group_id"));
 // Join between two streaming DataFrames/Datasets is not supported in Update output mode, only in Append output mode
 // Default trigger (runs micro-batch as soon as it can)
 //                .trigger(Trigger.ProcessingTime("1 minutes"))
@@ -148,9 +148,10 @@ write2console(countDf);
                 .option("topic", kafkaWriteTopic)
 //                .trigger(Trigger.ProcessingTime("1 minutes"))
                 .outputMode("append")
-                .option("checkpointLocation", "C://tmp//dir//" )
+                .option("checkpointLocation", "C://tmp//dir//")
                 .start();
     }
+
     private static void write2console(Dataset<Row> countDf) throws TimeoutException {
         countDf.writeStream().outputMode("append").format("console").start();
     }
