@@ -15,7 +15,7 @@ public class MonitorOrderSuccessRate {
     private static String kafkaIp = "192.168.1.70:9092";
     private static String kafkaWriteTopic = "monitorOrder";
     private static String oracleDriver = "oracle.jdbc.OracleDriver";
-    private static String oracleUrl = "jdbc:oracle:thin:@119.29.113.225:1521:ndev";
+    private static String oracleUrl = "jdbc:oracle:thin:@192.168.1.225:1521:ndev";
     private static String mysqlDriver = "com.mysql.jdbc.Driver";
     private static String mysqlUrl = "jdbc:mysql://192.168.31.31:3306/monitor";
     private static String userName = "hive";
