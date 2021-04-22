@@ -1,5 +1,6 @@
 package cn.swiftpass.spark.streaming;
 
+import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
@@ -12,14 +13,12 @@ import org.apache.spark.sql.types.StructType;
 import java.util.concurrent.TimeoutException;
 
 public class MonitorOrderSuccessRate {
-    private static String kafkaIp = "192.168.1.70:9092";
+    private static String kafkaIp = "127.0.0.1:9092";
     private static String kafkaWriteTopic = "monitorOrder";
-    private static String oracleDriver = "oracle.jdbc.OracleDriver";
-    private static String oracleUrl = "jdbc:oracle:thin:@192.168.1.225:1521:ndev";
     private static String mysqlDriver = "com.mysql.jdbc.Driver";
-    private static String mysqlUrl = "jdbc:mysql://192.168.31.31:3306/monitor";
-    private static String userName = "hive";
-    private static String password = "hive";
+    private static String mysqlUrl = "jdbc:mysql://127.0.0.1:3306/monitor?useUnicode=true&characterEncoding=utf8";
+    private static String userName = "root";
+    private static String password = "12345678";
 
 
     public static void main(String[] args) throws TimeoutException, StreamingQueryException {
@@ -79,8 +78,14 @@ public class MonitorOrderSuccessRate {
                 .option("dbtable", "filter_merchant_ids")
                 .option("user", userName)
                 .option("password", password)
-                .load();
-        Dataset<Row> afterFilterDf = filterDf.where("org_type= '1'").join(orderDF, col("merchant_id"), "left");
+                .load()
+                .filter("org_type='1'")
+                .select("org_type","merchant_id");
+
+
+        Column joinCond = filterDf.col("merchant_id").equalTo(orderDF.col("merchant_id"));
+
+        Dataset<Row> afterFilterDf = orderDF.join(filterDf, joinCond).drop(filterDf.col("merchant_id"));
         Dataset<Row> countDf = afterFilterDf.
                 withWatermark("trade_time", "30 seconds").
                 groupBy(window(col("trade_time"), "1 minutes"), col("merchant_id").alias("groupBy"), col("term_type"), col("state")
@@ -97,8 +102,8 @@ public class MonitorOrderSuccessRate {
         Dataset<Row> filterDf = ss
                 .read()
                 .format("jdbc")
-                .option("driver", oracleDriver)
-                .option("url", oracleUrl)
+                .option("driver", mysqlDriver)
+                .option("url", mysqlUrl)
                 .option("dbtable", "filter_merchant_ids")
                 .option("user", userName)
                 .option("password", password)
@@ -120,8 +125,8 @@ public class MonitorOrderSuccessRate {
         Dataset<Row> filterDf = ss
                 .read()
                 .format("jdbc")
-                .option("driver", oracleDriver)
-                .option("url", oracleUrl)
+                .option("driver", mysqlDriver)
+                .option("url", mysqlUrl)
                 .option("dbtable", "filter_group_ids")
                 .option("user", userName)
                 .option("password", password)
