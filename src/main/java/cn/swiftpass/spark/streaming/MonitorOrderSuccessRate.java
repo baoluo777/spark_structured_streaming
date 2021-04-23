@@ -13,12 +13,12 @@ import org.apache.spark.sql.types.StructType;
 import java.util.concurrent.TimeoutException;
 
 public class MonitorOrderSuccessRate {
-    private static String kafkaIp = "127.0.0.1:9092";
-    private static String kafkaWriteTopic = "monitorOrder";
-    private static String mysqlDriver = "com.mysql.jdbc.Driver";
-    private static String mysqlUrl = "jdbc:mysql://127.0.0.1:3306/monitor?useUnicode=true&characterEncoding=utf8";
-    private static String userName = "root";
-    private static String password = "12345678";
+    private static final String kafkaIp = "127.0.0.1:9092";
+    private static final String kafkaWriteTopic = "monitorOrder";
+    private static final String mysqlDriver = "com.mysql.jdbc.Driver";
+    private static final String mysqlUrl = "jdbc:mysql://127.0.0.1:3306/monitor?useUnicode=true&characterEncoding=utf8";
+    private static final String userName = "root";
+    private static final String password = "12345678";
 
 
     public static void main(String[] args) throws TimeoutException, StreamingQueryException {
@@ -27,6 +27,8 @@ public class MonitorOrderSuccessRate {
                 .master("local")
                 .appName("monitorOrderSuccessRate")
                 .getOrCreate();
+
+        //配置kafka作为source
         Dataset<Row> df = spark
                 .readStream()
                 .format("kafka")
@@ -46,6 +48,7 @@ public class MonitorOrderSuccessRate {
                 .add("term_type", "string")
                 .add("trade_time", "timestamp");
 
+        //使用schema解析kafka数据
         Dataset<Row> orderDF = df
                 .select(from_json(col("value").cast("string"), orderSchema).alias("parsed_value"))
                 .select("parsed_value.*");
@@ -59,6 +62,9 @@ public class MonitorOrderSuccessRate {
 
     }
 
+    /*
+     * 单个流中，设置时间窗口，根据bank_no分组，求count值
+     * */
     private static void groupWithBankNo(Dataset<Row> orderDF) throws TimeoutException {
         Dataset<Row> countDf = orderDF.
                 withWatermark("trade_time", "30 seconds").
@@ -68,7 +74,11 @@ public class MonitorOrderSuccessRate {
         write2console(countDf);
     }
 
-
+    /*
+     *stream-static Join
+     * kafka和mysql表join
+     * mysql中的表如果修改了，在流中对应的dataset值也会相应改变。
+     *  */
     private static void groupWithMerchantId(Dataset<Row> orderDF, SparkSession ss) throws TimeoutException {
         Dataset<Row> filterDf = ss
                 .read()
@@ -80,11 +90,12 @@ public class MonitorOrderSuccessRate {
                 .option("password", password)
                 .load()
                 .filter("org_type='1'")
-                .select("org_type","merchant_id");
+                .select("org_type", "merchant_id");
 
 
         Column joinCond = filterDf.col("merchant_id").equalTo(orderDF.col("merchant_id"));
 
+        //这里join之后，要删除掉一个merchant_id，不然会有歧义
         Dataset<Row> afterFilterDf = orderDF.join(filterDf, joinCond).drop(filterDf.col("merchant_id"));
         Dataset<Row> countDf = afterFilterDf.
                 withWatermark("trade_time", "30 seconds").
@@ -98,50 +109,8 @@ public class MonitorOrderSuccessRate {
         write2console(countDf);
     }
 
-    private static void groupWithAgentId(Dataset<Row> orderDF, SparkSession ss) throws TimeoutException {
-        Dataset<Row> filterDf = ss
-                .read()
-                .format("jdbc")
-                .option("driver", mysqlDriver)
-                .option("url", mysqlUrl)
-                .option("dbtable", "filter_merchant_ids")
-                .option("user", userName)
-                .option("password", password)
-                .load();
+//todo 双流join
 
-        Dataset<Row> afterFilterDf = orderDF.join(filterDf, col("agent_id"), "left");
-        Dataset<Row> countDf = afterFilterDf.
-                withWatermark("trade_time", "30 seconds").
-                groupBy(window(col("trade_time"), "1 minutes"), col("agent_id").alias("groupBy"), col("term_type"), col("state")
-                ).count().withColumn("groupByType", lit("agent_id"));
-// Join between two streaming DataFrames/Datasets is not supported in Update output mode, only in Append output mode
-// Default trigger (runs micro-batch as soon as it can)
-//                .trigger(Trigger.ProcessingTime("1 minutes"))
-        write2kafka(countDf);
-
-    }
-
-    private static void groupWithGroupId(Dataset<Row> orderDF, SparkSession ss) throws TimeoutException {
-        Dataset<Row> filterDf = ss
-                .read()
-                .format("jdbc")
-                .option("driver", mysqlDriver)
-                .option("url", mysqlUrl)
-                .option("dbtable", "filter_group_ids")
-                .option("user", userName)
-                .option("password", password)
-                .load();
-
-        Dataset<Row> afterFilterDf = orderDF.join(filterDf, "group_id");
-        Dataset<Row> countDf = afterFilterDf.
-                withWatermark("trade_time", "30 seconds").
-                groupBy(window(col("trade_time"), "1 minutes"), col("group_id").alias("groupBy"), col("term_type"), col("state")
-                ).count().withColumn("groupByType", lit("group_id"));
-// Join between two streaming DataFrames/Datasets is not supported in Update output mode, only in Append output mode
-// Default trigger (runs micro-batch as soon as it can)
-//                .trigger(Trigger.ProcessingTime("1 minutes"))
-        write2kafka(countDf);
-    }
 
     private static void write2kafka(Dataset<Row> countDf) throws TimeoutException {
         countDf
