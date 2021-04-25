@@ -29,6 +29,7 @@ public class MonitorOrderSuccessRate {
                 .getOrCreate();
 
         //配置kafka作为source
+        //http://spark.apache.org/docs/latest/structured-streaming-kafka-integration.html
         Dataset<Row> df = spark
                 .readStream()
                 .format("kafka")
@@ -55,8 +56,6 @@ public class MonitorOrderSuccessRate {
 
 //        groupWithBankNo(orderDF);
         groupWithMerchantId(orderDF, spark);
-//        groupWithAgentId(orderDF, spark);
-//        groupWithGroupId(orderDF, spark);
 
         spark.streams().awaitAnyTermination();
 
