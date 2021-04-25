@@ -1,3 +1,5 @@
+package cn.lb.spark.streaming;
+
 import org.apache.spark.api.java.function.FilterFunction;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
