@@ -13,7 +13,7 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <encoding>UTF-8</encoding>
         <scala.version>2.12.11</scala.version>
-        <spark.version>3.0.0</spark.version>
+        <spark.version>3.4.0</spark.version>
         <flink.version>1.12.2</flink.version>
     </properties>
     <dependencies>
